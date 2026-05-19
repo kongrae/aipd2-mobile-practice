@@ -97,6 +97,7 @@ let state = {...defaultState};
 let selectedOption = 0;
 let finished = false;
 let keyboardMode = false;
+let autoNextTimer = null;
 const $ = id => document.getElementById(id);
 
 function cloneDefaultState() { return {answers:{}, order:[], idx:0, mode:'seq'}; }
@@ -214,6 +215,7 @@ function showScore(final) {
 }
 function render() {
   try {
+    clearAutoNext();
     finished = false;
     $('scorebox').className = 'scorebox';
     if (!state.order || !state.order.length) makeOrder();
@@ -282,16 +284,31 @@ function mark(choice) {
   });
   const ok = choice === q.answer;
   $('result').className = 'result ' + (ok ? 'ok' : 'bad');
-  $('result').textContent = ok ? '정답입니다!' : `오답입니다. 정답은 ${labels[q.answer - 1]} 입니다.`;
+  $('result').textContent = ok ? '정답입니다! 다음 문제로 이동합니다.' : `오답입니다. 정답은 ${labels[q.answer - 1]} 입니다. 해설을 확인해보세요.`;
+  if (!ok) $('explain').style.display = 'block';
 }
 function choose(choice) {
   if (finished) return;
   const q = QUESTIONS[currentIndex()];
   if (!q || state.answers[q.num]) return;
-  state.answers[q.num] = {status: choice === q.answer ? 'correct' : 'wrong', choice};
+  const ok = choice === q.answer;
+  state.answers[q.num] = {status: ok ? 'correct' : 'wrong', choice};
   mark(choice); stats(); save();
+  if (ok) {
+    clearAutoNext();
+    autoNextTimer = window.setTimeout(() => {
+      autoNextTimer = null;
+      next();
+    }, 850);
+  }
 }
-function next() { state.idx = state.idx + 1; render(); }
+function clearAutoNext() {
+  if (autoNextTimer) {
+    window.clearTimeout(autoNextTimer);
+    autoNextTimer = null;
+  }
+}
+function next() { clearAutoNext(); state.idx = state.idx + 1; render(); }
 function bindEvents() {
   $('next').addEventListener('click', next);
   $('skip').addEventListener('click', () => { if (finished) return; const q = QUESTIONS[currentIndex()]; if (!q) return; state.answers[q.num] = {status:'skip'}; stats(); next(); });
